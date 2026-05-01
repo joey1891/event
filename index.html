@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>이벤트 참여 신청</title>
+    <title>이벤트 참여 및 룰렛</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Supabase JS 라이브러리 임포트 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap');
@@ -13,117 +12,350 @@
         .form-input {
             @apply mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-base p-3 border;
         }
+        /* 룰렛 스타일 */
+        #roulette-container {
+            position: relative;
+            width: 280px;
+            height: 280px;
+            margin: 0 auto;
+        }
+        #roulette-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        #roulette-pointer {
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-top: 25px solid #0D47A1;
+            z-index: 10;
+        }
+        /* 비활성화 상태 스타일 */
+        .disabled-overlay {
+            @apply absolute inset-0 bg-white/80 backdrop-blur-[2px] flex items-center justify-center z-20 rounded-xl transition-opacity duration-500;
+        }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4">
+<body class="bg-slate-50 min-h-screen py-10 px-4">
 
-    <div class="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
-        <!-- 헤더 섹션 -->
-        <div class="text-center mb-8">
-            <h1 class="text-2xl font-bold text-gray-800">🎁 이벤트 신청하기</h1>
-            <p class="text-gray-500 mt-2">모든 항목을 입력하여 신청을 완료해주세요.</p>
-        </div>
-
-        <!-- 설문 폼 -->
-        <form id="surveyForm" class="space-y-5">
-            <!-- 사용자 성함 (user_name, 필수) -->
-            <div>
-                <label class="block text-sm font-semibold text-gray-700">이름 <span class="text-red-500">*</span></label>
-                <input type="text" id="user_name" required placeholder="이름을 입력하세요" class="form-input">
-            </div>
-
-            <!-- 이메일 (email, 필수) -->
-            <div>
-                <label class="block text-sm font-semibold text-gray-700">이메일 <span class="text-red-500">*</span></label>
-                <input type="email" id="email" required placeholder="example@email.com" class="form-input">
-            </div>
-
-            <!-- 연락처 (Phone, 필수) -->
-            <div>
-                <label class="block text-sm font-semibold text-gray-700">연락처 <span class="text-red-500">*</span></label>
-                <input type="tel" id="Phone" required placeholder="010-0000-0000" class="form-input">
-            </div>
-
-            <!-- 주소 (address, 필수) -->
-            <div>
-                <label class="block text-sm font-semibold text-gray-700">주소 <span class="text-red-500">*</span></label>
-                <input type="text" id="address" required placeholder="상세 주소를 입력하세요" class="form-input">
-            </div>
-
-            <!-- 개인정보 동의 (privacy_agree, 필수) -->
-            <div class="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <div class="flex items-start">
-                    <div class="flex items-center h-5">
-                        <input id="privacy_agree" type="checkbox" required class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                    </div>
-                    <div class="ml-3 text-sm">
-                        <label for="privacy_agree" class="font-medium text-gray-700">개인정보 수집 및 이용 동의 <span class="text-red-500">*</span></label>
-                        <p class="text-gray-500 text-xs mt-1">이벤트 진행 및 경품 발송을 위해 정보를 수집합니다.</p>
-                    </div>
+    <div class="max-w-2xl mx-auto flex flex-col gap-8">
+        
+        <!-- 상단: 룰렛 섹션 -->
+        <div id="roulette-section" class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 relative overflow-hidden order-1">
+            <!-- 룰렛 잠금 오버레이 -->
+            <div id="roulette-lock" class="disabled-overlay">
+                <div class="text-center p-4">
+                    <span class="text-4xl">🔒</span>
+                    <p class="mt-2 font-bold text-gray-400 text-sm">하단의 폼을 먼저 작성해주세요</p>
                 </div>
             </div>
 
-            <!-- 제출 버튼 -->
-            <button type="submit" id="submitBtn" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-lg hover:bg-indigo-700 transition duration-200 shadow-lg shadow-indigo-200">
-                신청 완료하기
-            </button>
-        </form>
+            <div class="text-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">🎡 행운의 룰렛</h2>
+                <p class="text-gray-500 text-sm">정보를 입력하면 룰렛이 활성화됩니다!</p>
+            </div>
+            
+            <div id="roulette-container">
+                <div id="roulette-pointer"></div>
+                <canvas id="roulette-canvas" width="600" height="600"></canvas>
+            </div>
 
-        <!-- 결과 메시지 박스 -->
-        <div id="statusMessage" class="hidden mt-6 p-4 rounded-lg text-center font-medium"></div>
+            <button id="spinBtn" disabled class="mt-8 w-full bg-gray-300 text-white font-bold py-4 rounded-lg transition shadow-md cursor-not-allowed">
+                신청 완료 후 돌리기
+            </button>
+
+            <!-- 당첨 결과 표시 영역 -->
+            <div id="prizeResult" class="hidden mt-6 bg-blue-50 border-2 border-blue-200 p-4 rounded-xl text-center animate-bounce">
+                <span class="text-blue-800 font-bold">🎊 당첨 사은품: <span id="prizeText" class="text-xl text-blue-600"></span></span>
+            </div>
+        </div>
+
+        <!-- 하단: 신청 폼 섹션 -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 order-2">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-gray-800">🎁 이벤트 신청</h1>
+                <p class="text-gray-500 text-sm mt-1">정보를 입력하고 룰렛 기회를 얻으세요!</p>
+            </div>
+
+            <form id="surveyForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700">이름 <span class="text-red-500">*</span></label>
+                    <input type="text" id="user_name" required placeholder="이름을 입력하세요" class="form-input">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700">이메일 <span class="text-red-500">*</span></label>
+                    <input type="email" id="email" required placeholder="example@email.com" class="form-input">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700">연락처 <span class="text-red-500">*</span></label>
+                    <input type="tel" id="Phone" required placeholder="01022223333 (숫자만)" class="form-input">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700">주소 <span class="text-red-500">*</span></label>
+                    <input type="text" id="address" required placeholder="상세 주소를 입력하세요" class="form-input">
+                </div>
+                
+                <div class="space-y-2 py-2">
+                    <div class="flex items-start bg-gray-50 p-3 rounded border border-gray-100">
+                        <input id="privacy_agree" type="checkbox" required class="mt-1 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                        <label for="privacy_agree" class="ml-2 text-xs text-gray-600">개인정보 수집 및 이용 동의 (필수)</label>
+                    </div>
+                    <div class="flex items-start bg-gray-50 p-3 rounded border border-gray-100">
+                        <input id="marketing_agree" type="checkbox" required class="mt-1 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                        <label for="marketing_agree" class="ml-2 text-xs text-gray-600">마케팅 정보 수신 동의 (필수)</label>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">
+                    신청하고 룰렛 돌리기
+                </button>
+            </form>
+            
+            <!-- 상태 메시지 -->
+            <div id="statusMessage" class="hidden mt-4 p-3 rounded-lg text-center text-sm font-medium"></div>
+        </div>
+
     </div>
 
     <script>
         // Supabase 설정
         const SUPABASE_URL = 'https://rayhgqcpupwmwpymtkwg.supabase.co'; 
         const SUPABASE_ANON_KEY = 'sb_publishable_uxs3i3d0RtIPeB_hyb0Bfw_knaezHRO'; 
-        
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+        // DOM 요소
         const surveyForm = document.getElementById('surveyForm');
         const submitBtn = document.getElementById('submitBtn');
         const statusMessage = document.getElementById('statusMessage');
+        const rouletteLock = document.getElementById('roulette-lock');
+        const spinBtn = document.getElementById('spinBtn');
+        const prizeResult = document.getElementById('prizeResult');
+        const prizeText = document.getElementById('prizeText');
 
-        function showMessage(text, isSuccess) {
-            statusMessage.innerText = text;
-            statusMessage.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
-            if (isSuccess) statusMessage.classList.add('bg-green-100', 'text-green-700');
-            else statusMessage.classList.add('bg-red-100', 'text-red-700');
+        // 룰렛 관련 변수
+        const canvas = document.getElementById('roulette-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 사은품 항목 정의
+        const prizesRaw = [
+            '레스노베 코어 임팩트', '레스노베 하이퍼샷', '레스노베 하이퍼샷', 
+            '스칼프 앰플 6개입', '스칼프 앰플 6개입', '스칼프 앰플 6개입', 
+            '볼룸 샴푸 100ml', '볼룸 샴푸 100ml', '볼룸 샴푸 100ml', '볼룸 샴푸 100ml', 
+            '선 프로텍터 크림 10ml', '선 프로텍터 크림 10ml', '선 프로텍터 크림 10ml', 
+            '선 프로텍터 크림 10ml', '선 프로텍터 크림 10ml', '꽝', '꽝', '꽝'
+        ];
+
+        /**
+         * 인접한 항목이 중복되지 않도록 셔플하는 함수
+         */
+        function getDistributedPrizes(arr) {
+            let result = [...arr];
+            const maxAttempts = 100;
+            
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                // 1. 기본 무작위 셔플
+                result.sort(() => Math.random() - 0.5);
+                
+                // 2. 인접 중복 체크 (마지막과 첫 번째 항목도 원형이므로 체크)
+                let hasAdjacentDuplicate = false;
+                for (let i = 0; i < result.length; i++) {
+                    const current = result[i];
+                    const next = result[(i + 1) % result.length];
+                    if (current === next) {
+                        hasAdjacentDuplicate = true;
+                        break;
+                    }
+                }
+                
+                // 중복이 없으면 즉시 반환
+                if (!hasAdjacentDuplicate) return result;
+            }
+            
+            // 시도가 실패하더라도 섞인 결과 반환
+            return result;
         }
+        
+        const prizes = getDistributedPrizes(prizesRaw);
+
+        const prizeColors = {
+            '레스노베 코어 임팩트': '#0D47A1', 
+            '레스노베 하이퍼샷': '#1976D2',
+            '스칼프 앰플 6개입': '#2196F3',
+            '볼룸 샴푸 100ml': '#64B5F6',
+            '선 프로텍터 크림 10ml': '#BBDEFB',
+            '꽝': '#E3F2FD'  
+        };
+
+        let currentRotation = 0;
+        let isSpinning = false;
+        let savedRowId = null;
+        let finalPrize = "";
+
+        function drawRoulette() {
+            const numSegments = prizes.length;
+            const anglePerSegment = (Math.PI * 2) / numSegments;
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width / 2 - 10;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            prizes.forEach((prize, i) => {
+                const startAngle = i * anglePerSegment + currentRotation;
+                const endAngle = startAngle + anglePerSegment;
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+                ctx.fillStyle = prizeColors[prize];
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#fff';
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(startAngle + anglePerSegment / 2);
+                ctx.textAlign = "right";
+                
+                const darkBg = ['레스노베 코어 임팩트', '레스노베 하이퍼샷', '스칼프 앰플 6개입'].includes(prize);
+                ctx.fillStyle = darkBg ? "#fff" : "#1565C0";
+                
+                let fontSize = "24px";
+                if (prize.length > 10) fontSize = "14px";
+                else if (prize.length > 7) fontSize = "16px";
+                else if (prize.length > 4) fontSize = "20px";
+                
+                ctx.font = `bold ${fontSize} Pretendard`;
+                ctx.fillText(prize, radius - 20, 10);
+                ctx.restore();
+            });
+        }
+
+        drawRoulette();
 
         surveyForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-
             submitBtn.disabled = true;
-            submitBtn.innerText = '전송 중...';
+            submitBtn.innerText = '저장 중...';
 
-            // 이미지의 컬럼명과 정확히 일치하도록 Key값을 매칭했습니다.
+            const rawPhone = document.getElementById('Phone').value;
+            const cleanPhone = rawPhone.replace(/\D/g, ''); 
+
             const formData = {
                 user_name: document.getElementById('user_name').value,
                 email: document.getElementById('email').value,
-                Phone: document.getElementById('Phone').value,
+                Phone: cleanPhone,
                 address: document.getElementById('address').value,
-                privacy_agree: document.getElementById('privacy_agree').checked
+                privacy_agree: document.getElementById('privacy_agree').checked,
+                marketing_agree: document.getElementById('marketing_agree').checked
             };
 
             try {
-                const { error } = await supabaseClient
+                const { data, error } = await supabaseClient
                     .from('survey_responses') 
-                    .insert([formData]);
+                    .insert([formData])
+                    .select();
 
                 if (error) throw error;
+                if (data && data.length > 0) savedRowId = data[0].id;
 
-                showMessage('🎉 성공적으로 신청되었습니다!', true);
-                surveyForm.reset(); 
+                statusMessage.innerText = '✅ 신청 완료! 상단 룰렛을 돌려보세요.';
+                statusMessage.classList.remove('hidden', 'bg-red-100', 'text-red-700');
+                statusMessage.classList.add('bg-green-100', 'text-green-700');
+                
+                rouletteLock.classList.add('opacity-0');
+                setTimeout(() => rouletteLock.classList.add('hidden'), 500);
+                
+                spinBtn.disabled = false;
+                spinBtn.innerText = '룰렛 돌리기 (START)';
+                spinBtn.classList.replace('bg-gray-300', 'bg-blue-600');
+                spinBtn.classList.remove('cursor-not-allowed');
+                spinBtn.classList.add('hover:bg-blue-700');
+
+                Array.from(surveyForm.elements).forEach(el => el.disabled = true);
+                submitBtn.innerText = '신청 완료됨';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
                 
             } catch (error) {
-                console.error('Error:', error);
-                showMessage('❌ 오류가 발생했습니다: ' + error.message, false);
-            } finally {
+                console.error(error);
+                statusMessage.innerText = '❌ 오류: ' + error.message;
+                statusMessage.classList.remove('hidden', 'bg-green-100', 'text-green-700');
+                statusMessage.classList.add('bg-red-100', 'text-red-700');
                 submitBtn.disabled = false;
-                submitBtn.innerText = '신청 완료하기';
+                submitBtn.innerText = '신청하고 룰렛 돌리기';
             }
         });
+
+        spinBtn.addEventListener('click', () => {
+            if (isSpinning) return;
+            isSpinning = true;
+            spinBtn.disabled = true;
+            spinBtn.classList.replace('bg-blue-600', 'bg-gray-400');
+
+            const rand = Math.random() * 10000;
+            if (rand <= 1) {
+                finalPrize = "레스노베 코어 임팩트"; 
+            } else if (rand <= 11) {
+                finalPrize = "레스노베 하이퍼샷"; 
+            } else if (rand <= 111) {
+                finalPrize = "스칼프 앰플 6개입"; 
+            } else {
+                const remainingPrizes = prizes.filter(p => 
+                    p !== "레스노베 코어 임팩트" && 
+                    p !== "레스노베 하이퍼샷" && 
+                    p !== "스칼프 앰플 6개입"
+                );
+                finalPrize = remainingPrizes[Math.floor(Math.random() * remainingPrizes.length)];
+            }
+
+            const targetIndices = [];
+            prizes.forEach((p, i) => { if (p === finalPrize) targetIndices.push(i); });
+            const chosenIndex = targetIndices[Math.floor(Math.random() * targetIndices.length)];
+
+            const numSegments = prizes.length;
+            const anglePerSegment = (Math.PI * 2) / numSegments;
+            const stopAngle = (Math.PI * 1.5) - (chosenIndex * anglePerSegment) - (anglePerSegment / 2);
+            const totalRotation = (Math.PI * 2 * 8) + stopAngle; 
+
+            const duration = 5000; 
+            const startTimestamp = performance.now();
+
+            function animate(now) {
+                const elapsed = now - startTimestamp;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 4); 
+                
+                currentRotation = easeOut * totalRotation;
+                drawRoulette();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    finishSpin();
+                }
+            }
+            requestAnimationFrame(animate);
+        });
+
+        async function finishSpin() {
+            isSpinning = false;
+            prizeText.innerText = finalPrize;
+            prizeResult.classList.remove('hidden');
+            spinBtn.innerText = '룰렛 참여 완료';
+
+            if (savedRowId) {
+                await supabaseClient
+                    .from('survey_responses')
+                    .update({ prize: finalPrize })
+                    .eq('id', savedRowId);
+            }
+        }
     </script>
 </body>
 </html>
